@@ -60,19 +60,6 @@ Then convert the Llama 2 LLM into .nemo format:
    mkdir -p /models/llama70b/
    python /opt/NeMo/scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py --in-file /path/to/llama --out-file /models/llama70b/llama70b.nemo
 
-Download and convert to .nemo format for the 13B model <https://huggingface.co/meta-llama/Llama-2-13b-hf> as well, which is needed for the Attribute Prediction Modelling step.
-
-Untar the .nemo file to obtain the tokenizer in NeMo format (only for the 70B model):
-
-.. code-block:: bash
-
-   cd /models/llama70b
-   tar xvf llama70b.nemo .
-   rm llama70b.nemo
-
-   mv <random_prefix>_tokenizer.model tokenizer.model
-
-The prefix for the tokenizer would be different when extracted. Ensure that the correct tokenizer file is used when running the preceding command.
 
 Step 2: Generate responses to harmfulness prompts using a helpful-only AI assistant
 #######################################################################
