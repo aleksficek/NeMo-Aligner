@@ -16,7 +16,7 @@ The basic steps of CAI, as illustrated in Figure 1 of the paper (below):
 
 (RL Stage) AI Comparison Evaluations → Reward Model → Reinforcement Learning: The AI generates pairs of responses to harmfulness prompts using the finetuned model, then evaluates which response is better according to a principle in the constitution, and then trains a reward model from this dataset of AI preferences. The AI then trains with RL using the learned reward model.
 
-.. image:: docs/assets/cai_diagram.png
+.. image:: ../assets/cai_diagram.png
    :alt: basic steps of the CAI process
 
 Both the critiques and the AI feedback are steered by a small set of principles drawn from a ‘constitution’. The supervised stage significantly improves the initial model, and gives some control over the initial behavior at the start of the RL phase, addressing potential exploration problems. The RL stage significantly improves performance and reliability.
