@@ -61,7 +61,7 @@ Then convert the Llama 2 LLM into .nemo format:
    python /opt/NeMo/scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py --in-file /path/to/llama --out-file /models/llama70b/llama70b.nemo
 
 
-Step 2: Generate responses to harmfulness prompts using a helpful-only AI assistant
+Step 2: Generate and revise responses to harmfulness prompts using a helpful-only AI assistant
 #######################################################################
 
 
@@ -119,7 +119,7 @@ Step 3: Finetune Llama2 70B with SFT on the revised responses to create a Llama2
 
 
 
-Step 4: Use Llama2-70B-SL-CAI to generate a pair of responses to each prompt in a dataset of harmful prompts
+Step 4: Use Llama2-70B-SL-CAI to generate and rank a pair of responses to each prompt in a dataset of harmful prompts
 #############################################################################################################
 
 
