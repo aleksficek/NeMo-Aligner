@@ -224,7 +224,7 @@ class SupervisedTrainer:
         # down for resume training to work correctly
         if is_train_end:
             self.save(final_metrics, is_train_end=is_train_end)
-        
+
         self.logger.finalize()
 
     def save(self, extra_candidates=None, is_train_end=False):
