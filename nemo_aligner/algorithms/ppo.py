@@ -375,7 +375,7 @@ class PPOTrainer:
             dataloader_iter = iter(self.train_dataloader)
 
             global_pbar = tqdm(
-                dataloader_iter, initial=self.step, total=self.max_steps, leave=True, desc="PPO Global Step"
+                loop_iter, initial=self.step, total=self.max_steps, leave=True, desc="PPO Global Step"
             )
 
             num_rollout_micro_batches = compute_num_rollout_microbatches(self.train_dataloader)

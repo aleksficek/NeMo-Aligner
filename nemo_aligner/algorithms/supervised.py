@@ -159,7 +159,7 @@ class SupervisedTrainer:
 
             # TODO(geshen): to change for when we support > 1 epoch
             if len(loop_iter) <= 0:
-                return  # training ended
+                break  # training ended
 
             global_pbar = tqdm(
                 self.train_dataloader, initial=self.step, total=self.max_steps, leave=True, desc="Training steps"
@@ -206,7 +206,11 @@ class SupervisedTrainer:
                 if save_model:
                     # PTL save wants tensors only
                     metrics = {k: torch.as_tensor(v) for k, v in metrics.items()}
-                    self.save(metrics, is_train_end=is_train_end)
+                    if not is_train_end:
+                        # don't save here if is_train_end because self.epoch hasn't updated yet
+                        self.save(metrics, is_train_end=is_train_end)
+                    else:
+                        final_metrics = metrics.copy()
 
                 if run_time_exceeded:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")
@@ -216,6 +220,11 @@ class SupervisedTrainer:
 
             self.epoch += 1
 
+        # need to save here so that self.epoch has time to increment so that the correct epoch value is saved
+        # down for resume training to work correctly
+        if is_train_end:
+            self.save(final_metrics, is_train_end=is_train_end)
+        
         self.logger.finalize()
 
     def save(self, extra_candidates=None, is_train_end=False):
@@ -225,7 +234,7 @@ class SupervisedTrainer:
         if extra_candidates is None:
             extra_candidates = {}
 
-        monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict(is_train_end).items()}
+        monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
@@ -236,11 +245,11 @@ class SupervisedTrainer:
         if (max_steps := self.cfg.get("max_steps", -1)) >= 0:
             self.max_steps = min(self.max_steps, max_steps)
 
-    def state_dict(self, is_train_end=False):
+    def state_dict(self):
         return {
             "step": self.step,
             "consumed_samples": self.consumed_samples,
-            "epoch": self.epoch + int(is_train_end),
+            "epoch": self.epoch,
         }
 
     def load_state_dict(self, state_dict):
