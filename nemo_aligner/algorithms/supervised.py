@@ -157,7 +157,9 @@ class SupervisedTrainer:
         self.run_timer.start_time()
 
         for _ in epoch_iter:
-            num_steps_in_epoch = min(self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch)
+            num_steps_in_epoch = min(
+                self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch
+            )
             loop_iter = range(num_steps_in_epoch)
 
             if not loop_iter:
@@ -256,7 +258,7 @@ class SupervisedTrainer:
         assert loaded_values == to_broadcast.tolist()
         # restore max steps we need to run for
         self.set_max_steps()
-    
+
     @property
     def epoch(self):
         return self.step // self.num_steps_per_epoch

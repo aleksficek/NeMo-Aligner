@@ -368,7 +368,9 @@ class PPOTrainer:
             return
 
         for _ in epoch_iter:
-            num_steps_in_epoch = min(self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch)
+            num_steps_in_epoch = min(
+                self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch
+            )
             loop_iter = range(num_steps_in_epoch)
 
             if not loop_iter:
@@ -518,7 +520,7 @@ class PPOTrainer:
 
         if (max_steps := self.cfg.get("max_steps", -1)) >= 0:
             self.max_steps = min(self.max_steps, max_steps)
-    
+
     @property
     def epoch(self):
         return self.step // self.num_steps_per_epoch

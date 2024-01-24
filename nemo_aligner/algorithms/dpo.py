@@ -104,7 +104,7 @@ class DPOTrainer:
         if not sampler.drop_last:
             raise NotImplementedError("`drop_last=False` is not currently supported")
         self.num_steps_per_epoch = sampler.total_samples // sampler.global_batch_size
-        
+
         self.limit_val_batches = compute_limit_batches(len(val_dataloader), self.cfg.limit_val_batches)
         self.val_check_interval = (
             int(self.cfg.val_check_interval * self._train_dataloader_len)
@@ -199,7 +199,9 @@ class DPOTrainer:
         self.run_timer.start_time()
 
         for _ in epoch_iter:
-            num_steps_in_epoch = min(self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch)
+            num_steps_in_epoch = min(
+                self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch
+            )
             loop_iter = range(num_steps_in_epoch)
 
             if not loop_iter:
@@ -330,7 +332,7 @@ class DPOTrainer:
                     yield batch
                 buffer.clear()
                 del logprobs
-    
+
     @property
     def epoch(self):
         return self.step // self.num_steps_per_epoch
