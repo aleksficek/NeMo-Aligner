@@ -80,14 +80,16 @@ class PPOTrainer:
         self.run_timer = run_timer
 
         self.consumed_samples = 0
-        self.epoch = 0
         # the step here is PPO step
         self.step = 0
         # keep track of how many times we optimized the actor
         self.ppo_optimization_step = 0
 
-        # used to compute the max step
-        self._train_dataloader_len = len(train_dataloader)
+        # compute `max_steps`
+        sampler = self.train_dataloader.batch_sampler
+        if not sampler.drop_last:
+            raise NotImplementedError("`drop_last=False` is not currently supported")
+        self.num_steps_per_epoch = sampler.total_samples // sampler.global_batch_size
         self.set_max_steps()
 
         self.compute_init_policy_kl = self.cfg.initial_policy_kl_penalty > 0
@@ -366,10 +368,10 @@ class PPOTrainer:
             return
 
         for _ in epoch_iter:
-            loop_iter = range(self.step, self.max_steps)
+            num_steps_in_epoch = min(self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch)
+            loop_iter = range(num_steps_in_epoch)
 
-            # TODO(geshen): to change for when we support > 1 epoch
-            if len(loop_iter) <= 0:
+            if not loop_iter:
                 return  # training ended
 
             dataloader_iter = iter(self.train_dataloader)
@@ -466,25 +468,22 @@ class PPOTrainer:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")
                     return
 
-            self.epoch += 1
-
         self.logger.finalize()
 
-    def state_dict(self, is_train_end=False):
+    def state_dict(self):
         return {
             "step": self.step,
             "consumed_samples": self.consumed_samples,
-            "epoch": self.epoch + int(is_train_end),
+            "epoch": self.epoch,
             "ppo_optimization_step": self.ppo_optimization_step,
         }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.epoch = state_dict["epoch"]
         self.ppo_optimization_step = state_dict["ppo_optimization_step"]
 
-        loaded_values = [self.step, self.consumed_samples, self.epoch, self.ppo_optimization_step]
+        loaded_values = [self.step, self.consumed_samples, self.ppo_optimization_step]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())
@@ -503,7 +502,7 @@ class PPOTrainer:
         if extra_candidates is None:
             extra_candidates = {}
 
-        monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict(is_train_end).items()}
+        monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
 
         future = self.rm_critic.save()
@@ -515,7 +514,11 @@ class PPOTrainer:
         self.model.finish_training()
 
     def set_max_steps(self):
-        self.max_steps = (self._train_dataloader_len * (self.cfg.max_epochs - self.epoch)) + self.step
+        self.max_steps = self.num_steps_per_epoch * self.cfg.max_epochs
 
         if (max_steps := self.cfg.get("max_steps", -1)) >= 0:
             self.max_steps = min(self.max_steps, max_steps)
+    
+    @property
+    def epoch(self):
+        return self.step // self.num_steps_per_epoch

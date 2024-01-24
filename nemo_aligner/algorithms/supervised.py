@@ -59,13 +59,15 @@ class SupervisedTrainer:
         self.run_timer = run_timer
 
         self.step = 0
-        self.epoch = 0
         self.consumed_samples = 0
 
         self.ckpt_callback = ckpt_callback
 
-        # used to compute the max step
-        self._train_dataloader_len = len(train_dataloader)
+        # compute `max_steps`
+        sampler = self.train_dataloader.batch_sampler
+        if not sampler.drop_last:
+            raise NotImplementedError("`drop_last=False` is not currently supported")
+        self.num_steps_per_epoch = sampler.total_samples // sampler.global_batch_size
 
         self.limit_val_batches = compute_limit_batches(len(val_dataloader), self.cfg.limit_val_batches)
         self.set_max_steps()
@@ -155,11 +157,11 @@ class SupervisedTrainer:
         self.run_timer.start_time()
 
         for _ in epoch_iter:
-            loop_iter = range(self.step, self.max_steps)
+            num_steps_in_epoch = min(self.max_steps - self.step, self.num_steps_per_epoch - self.step % self.num_steps_per_epoch)
+            loop_iter = range(num_steps_in_epoch)
 
-            # TODO(geshen): to change for when we support > 1 epoch
-            if len(loop_iter) <= 0:
-                break  # training ended
+            if not loop_iter:
+                return  # training ended
 
             global_pbar = tqdm(
                 self.train_dataloader, initial=self.step, total=self.max_steps, leave=True, desc="Training steps"
@@ -206,24 +208,13 @@ class SupervisedTrainer:
                 if save_model:
                     # PTL save wants tensors only
                     metrics = {k: torch.as_tensor(v) for k, v in metrics.items()}
-                    if not is_train_end:
-                        # don't save here if is_train_end because self.epoch hasn't updated yet
-                        self.save(metrics, is_train_end=is_train_end)
-                    else:
-                        final_metrics = metrics.copy()
+                    self.save(metrics, is_train_end=is_train_end)
 
                 if run_time_exceeded:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")
                     return
 
                 metrics.clear()
-
-            self.epoch += 1
-
-        # need to save here so that self.epoch has time to increment so that the correct epoch value is saved
-        # down for resume training to work correctly
-        if is_train_end:
-            self.save(final_metrics, is_train_end=is_train_end)
 
         self.logger.finalize()
 
@@ -240,7 +231,7 @@ class SupervisedTrainer:
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
 
     def set_max_steps(self):
-        self.max_steps = (self._train_dataloader_len * (self.cfg.max_epochs - self.epoch)) + self.step
+        self.max_steps = self.num_steps_per_epoch * self.cfg.max_epochs
 
         if (max_steps := self.cfg.get("max_steps", -1)) >= 0:
             self.max_steps = min(self.max_steps, max_steps)
@@ -255,9 +246,8 @@ class SupervisedTrainer:
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.epoch = state_dict["epoch"]
 
-        loaded_values = [self.step, self.consumed_samples, self.epoch]
+        loaded_values = [self.step, self.consumed_samples]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())
@@ -266,3 +256,7 @@ class SupervisedTrainer:
         assert loaded_values == to_broadcast.tolist()
         # restore max steps we need to run for
         self.set_max_steps()
+    
+    @property
+    def epoch(self):
+        return self.step // self.num_steps_per_epoch
