@@ -38,7 +38,7 @@ from nemo_aligner.utils.ppo_utils import (
 )
 from nemo_aligner.utils.server_utils import FutureResult
 from nemo_aligner.utils.train_utils import clip_gradients
-from nemo_aligner.utils.trainer_utils import check_progress
+from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict, masked_mean
 
 
@@ -86,10 +86,7 @@ class PPOTrainer:
         self.ppo_optimization_step = 0
 
         # compute `max_steps`
-        sampler = self.train_dataloader.batch_sampler
-        if not sampler.drop_last:
-            raise NotImplementedError("`drop_last=False` is not currently supported")
-        self.num_steps_per_epoch = sampler.total_samples // sampler.global_batch_size
+        self.num_steps_per_epoch = compute_num_steps_per_epoch(self.train_dataloader.batch_sampler)
         self.set_max_steps()
 
         self.compute_init_policy_kl = self.cfg.initial_policy_kl_penalty > 0
