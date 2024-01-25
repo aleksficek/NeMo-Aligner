@@ -14,14 +14,18 @@
 
 from typing import Union
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingRandomBatchSampler
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingRandomBatchSampler,
+)
 from nemo_aligner.data.nlp.samplers import MegatronPretrainingRandomSampler
 
 
-def compute_num_steps_per_epoch(sampler: Union[MegatronPretrainingRandomSampler, MegatronPretrainingRandomBatchSampler]):
+def compute_num_steps_per_epoch(
+    sampler: Union[MegatronPretrainingRandomSampler, MegatronPretrainingRandomBatchSampler]
+):
     if not sampler.drop_last:
         raise NotImplementedError("`drop_last=False` is not currently supported")
-    
+
     return sampler.total_samples // sampler.global_batch_size
 
 
