@@ -47,8 +47,6 @@ class RLHFDataset(Dataset):
 
         self.use_json = self.cfg.data.data_impl.startswith("json")
 
-        self.indices = list(range(len(self)))
-
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < len(self.data)
@@ -95,8 +93,7 @@ class RLHFDataset(Dataset):
 
         orig_idx = idx = idx % len(self)
         while True:
-            shuffled_idx = self.indices[idx]
-            sample = self.data[shuffled_idx]
+            sample = self.data[idx]
             if self.use_json:
                 sample, _ = self.encode(sample["text"])
             if len(sample) <= self.max_sample_length:
@@ -109,7 +106,7 @@ class RLHFDataset(Dataset):
         if idx != orig_idx:
             logging.warning(
                 f"Sample {orig_idx} in dataset '{self.name}' has length "
-                f"{len(self.data[self.indices[orig_idx]])} > {self.max_sample_length} "
+                f"{len(self.data[orig_idx])} > {self.max_sample_length} "
                 f"=> replacing it with sample {idx} and masking its loss"
             )
             mask_sample = True
@@ -154,8 +151,6 @@ class RewardModelDataset(Dataset):
         self.eod_mask_loss = cfg.data.get("eod_mask_loss", False)
         self.eos_id = tokenizer.eos_id
 
-        self.indices = list(range(len(self)))
-
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < len(self.data)
@@ -191,9 +186,8 @@ class RewardModelDataset(Dataset):
         """
         found = False
         while not found:
-            shuffled_idx = self.indices[idx]
-            chosen = self.data[multiple * shuffled_idx]
-            rejected = self.data[multiple * shuffled_idx + 1]
+            chosen = self.data[multiple * idx]
+            rejected = self.data[multiple * idx + 1]
             if self.cfg.data.data_impl.startswith("json"):
                 chosen, _ = self.encode(chosen["text"])
                 rejected, _ = self.encode(rejected["text"])
@@ -381,8 +375,7 @@ class RegressionRewardModelDataset(RewardModelDataset):
 
         orig_idx = idx = idx % len(self)
         while True:
-            shuffled_idx = self.indices[idx]
-            sample = self.data[shuffled_idx]
+            sample = self.data[idx]
             sample_text, sample_length = self.encode(sample["text"])
             sample_label = sample["label"]
             if idx == orig_idx:
@@ -421,9 +414,9 @@ class RegressionRewardModelDataset(RewardModelDataset):
         # Replace current sample (when it exceeds max length) with another sample but mask its loss
         if idx != orig_idx:
             logging.warning(
-                f"Sample {self.indices[orig_idx]} in dataset '{self.name}' has length "
+                f"Sample {orig_idx} in dataset '{self.name}' has length "
                 f"{orig_length} > {self.seq_length} "
-                f"=> replacing it with sample {self.indices[idx]} and masking its loss"
+                f"=> replacing it with sample {idx} and masking its loss"
             )
             loss_mask = torch.zeros_like(loss_mask)
 
