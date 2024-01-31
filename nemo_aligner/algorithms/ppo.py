@@ -95,7 +95,7 @@ class PPOTrainer:
 
         # for wandb table
         self.train_df = pd.DataFrame(columns=["step", "prompt", "response", "reward"])
-        self.val_df = pd.DataFrame(columns=["step", "prompt", "response", "reward"])
+        self.val_df = pd.DataFrame(columns=["step", "idx_in_batch", "prompt", "response", "reward"])
 
         self.timer = SyncTimer(
             reduction="mean", sync_cuda=True, buffer_size=1, reduce_op=torch.distributed.ReduceOp.MAX
@@ -229,11 +229,11 @@ class PPOTrainer:
             rollout_batch["rewards"] = rewards
             rollout_batch["values"] = values
 
-        return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
+        return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches, is_validation))
 
-    def compute_global_rollout_metrics(self, rollout_batches):
+    def compute_global_rollout_metrics(self, rollout_batches, is_validation=False):
         metrics = defaultdict(lambda: 0)
-        table = {}
+        table = []
 
         num_samples = 0
         for i, rollout_batch in enumerate(rollout_batches):
@@ -243,17 +243,19 @@ class PPOTrainer:
             rewards = rollout_batch["rewards"]
 
             # table logging
-            if i == 0:
+            if i == 0 or (is_validation and i < self.cfg.val_num_logged_table_prompts):
                 reward = rewards[0]
                 prompt_length = prompt_lengths[0]
                 response_length = response_lengths[0]
                 response_token = response_tokens[0]
 
-                table["reward"] = reward.item()
-                table["prompt"] = self.model.tokenizer.ids_to_text(response_token[:prompt_length].tolist())
-                table["response"] = self.model.tokenizer.ids_to_text(
+                table.append({})
+                table[-1]["reward"] = reward.item()
+                table[-1]["prompt"] = self.model.tokenizer.ids_to_text(response_token[:prompt_length].tolist())
+                table[-1]["response"] = self.model.tokenizer.ids_to_text(
                     response_token[prompt_length:response_length].tolist()
                 )
+                table[-1]["idx_in_batch"] = i
 
             metrics["response_lengths"] += (response_lengths - prompt_lengths).sum()
             metrics["prompt_lengths"] += prompt_lengths.sum()
@@ -391,9 +393,9 @@ class PPOTrainer:
                 table_metrics = metrics.pop("table")
                 self.train_df.loc[len(self.train_df)] = [
                     self.step,
-                    table_metrics["prompt"],
-                    table_metrics["response"],
-                    table_metrics["reward"],
+                    table_metrics[0]["prompt"],
+                    table_metrics[0]["response"],
+                    table_metrics[0]["reward"],
                 ]
                 self.logger.log_metrics(
                     metrics, step=self.step, prefix="train_rollouts/",
@@ -432,13 +434,14 @@ class PPOTrainer:
                     timing_metrics["validation_time"] = self.timer.get("validation_time")
 
                     val_table_metrics = val_metrics.pop("table")
-
-                    self.val_df.loc[len(self.val_df)] = [
-                        self.step,
-                        val_table_metrics["prompt"],
-                        val_table_metrics["response"],
-                        val_table_metrics["reward"],
-                    ]
+                    for i in range(self.cfg.val_num_logged_table_prompts):
+                        self.val_df.loc[len(self.val_df)] = [
+                            self.step,
+                            val_table_metrics[i]["idx_in_batch"],
+                            val_table_metrics[i]["prompt"],
+                            val_table_metrics[i]["response"],
+                            val_table_metrics[i]["reward"],
+                        ]
                     self.logger.log_metrics(val_metrics, step=self.step, prefix="val_rollouts/")
                     self.logger.log_table("table/val_rollouts", dataframe=self.val_df, step=self.step)
 
