@@ -129,16 +129,16 @@ class RewardModelHead(RowParallelLinear):
         if self.output_sequence:
             # a sequence of multi-attribute rewards, used for critic model, returning tensor with shape [B x S]
             assert attributes.dim() == 3, "for critic, attributes should have shape [B x S x self.output_size]"
-            return attributes @ self.attributes_weights
+            return torch.sigmoid(attributes @ self.attributes_weights)
 
         else:
             assert attributes.dim() == 2, "for reward, attributes should have shape [B x self.output_size]"
             if not self.merge_attributes:
                 # do not merge attributes during regression rm training
-                return attributes
+                return torch.sigmoid(attributes)
             else:
                 # during ppo, returning tensor with shape [B x 1]
-                return (attributes @ self.attributes_weights).unsqueeze(-1)
+                return torch.sigmoid((attributes @ self.attributes_weights).unsqueeze(-1))
 
 
 class GPTRewardModel(GPTModel):
